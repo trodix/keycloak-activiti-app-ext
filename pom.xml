@@ -52,6 +52,23 @@
 		</dependency>
 	</dependencies>
 
+	<build>
+		<plugins>
+			<plugin>
+				<groupId>io.repaint.maven</groupId>
+				<artifactId>tiles-maven-plugin</artifactId>
+				<version>2.21</version>
+				<extensions>true</extensions>
+				<configuration>
+					<filtering>true</filtering>
+					<tiles>
+						<tile>com.inteligr8:maven-public-deploy-tile:[1.0.0,2.0.0)</tile>
+					</tiles>
+				</configuration>
+			</plugin>
+		</plugins>
+	</build>
+
 	<repositories>
 		<repository>
 			<id>alfresco-public</id>
@@ -62,4 +79,11 @@
 			<url>https://artifacts.alfresco.com/nexus/content/repositories/activiti-enterprise-releases</url>
 		</repository>
 	</repositories>
+	
+	<pluginRepositories>
+		<pluginRepository>
+			<id>inteligr8-releases</id>
+			<url>https://repos.inteligr8.com/nexus/repository/inteligr8-public</url>
+		</pluginRepository>
+	</pluginRepositories>
 </project>
