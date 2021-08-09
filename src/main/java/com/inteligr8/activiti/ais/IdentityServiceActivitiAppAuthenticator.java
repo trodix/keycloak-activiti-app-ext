@@ -24,6 +24,7 @@ import com.activiti.service.api.GroupService;
 import com.activiti.service.api.UserService;
 import com.activiti.service.idm.TenantService;
 import com.activiti.service.license.LicenseService;
+import com.inteligr8.activiti.Authenticator;
 
 /**
  * This class/bean implements an Open ID Connect authenticator for Alfresco

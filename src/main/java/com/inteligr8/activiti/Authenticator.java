@@ -1,4 +1,4 @@
-package com.inteligr8.activiti.ais;
+package com.inteligr8.activiti;
 
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;

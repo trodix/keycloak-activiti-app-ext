@@ -7,6 +7,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.security.authentication.AuthenticationProvider;
 
 import com.activiti.api.security.AlfrescoAuthenticationProviderOverride;
+import com.inteligr8.activiti.Authenticator;
 
 /**
  * FIXME This would be nice, but with AIS enabled, it is never called.  The use

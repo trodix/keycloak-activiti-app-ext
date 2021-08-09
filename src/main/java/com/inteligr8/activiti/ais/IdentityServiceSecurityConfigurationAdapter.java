@@ -13,6 +13,7 @@ import org.springframework.stereotype.Component;
 import com.activiti.api.msmt.MsmtTenantResolver;
 import com.activiti.api.security.AlfrescoSecurityConfigOverride;
 import com.activiti.conf.MsmtProperties;
+import com.inteligr8.activiti.Authenticator;
 
 /**
  * This class/bean overrides the AIS authentication provider, enabling a more

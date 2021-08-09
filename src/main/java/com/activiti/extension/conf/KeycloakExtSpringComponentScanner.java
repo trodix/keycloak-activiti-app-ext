@@ -4,7 +4,7 @@ import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration
-@ComponentScan(basePackages = {"com.inteligr8.activiti.oidc"})
-public class OidcExtSpringComponentScanner {
+@ComponentScan(basePackages = {"com.inteligr8.activiti.ais"})
+public class KeycloakExtSpringComponentScanner {
 
 }

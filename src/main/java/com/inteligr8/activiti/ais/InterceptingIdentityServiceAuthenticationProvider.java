@@ -6,6 +6,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
 
 import com.activiti.security.identity.service.authentication.provider.IdentityServiceAuthenticationProvider;
+import com.inteligr8.activiti.Authenticator;
 
 /**
  * This class/bean extends the APS AIS OOTB authentication provider.  It uses

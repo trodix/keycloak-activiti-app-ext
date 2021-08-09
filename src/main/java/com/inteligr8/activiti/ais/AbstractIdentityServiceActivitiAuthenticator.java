@@ -15,6 +15,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 
 import com.activiti.security.identity.service.authentication.provider.IdentityServiceAuthenticationToken;
+import com.inteligr8.activiti.Authenticator;
 
 public abstract class AbstractIdentityServiceActivitiAuthenticator implements Authenticator {
 	
