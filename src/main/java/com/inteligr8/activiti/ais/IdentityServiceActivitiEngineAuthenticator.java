@@ -15,6 +15,8 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.stereotype.Component;
 
+import com.inteligr8.activiti.Authenticator;
+
 /**
  * This is an unused implementation for non-APS installation.  It is not tested
  * and probably pointless.
@@ -104,8 +106,11 @@ public class IdentityServiceActivitiEngineAuthenticator extends AbstractIdentity
     }
 
     private void syncUserAuthorities(User user, Authentication auth) {
-    	Set<String> authorities = this.toSet(auth.getAuthorities());
-		this.logger.debug("OIDC authorities: {}", authorities);
+    	Set<String> authorities = this.getRoles(auth);
+    	if (authorities == null) {
+    		this.logger.debug("The user authorities could not be determined; skipping sync: {}", user.getEmail());
+    		return;
+    	}
     	
 		// check Activiti groups
     	List<Group> groups = this.identityService.createGroupQuery()
