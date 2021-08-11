@@ -148,9 +148,9 @@ public class IdentityServiceActivitiAppAuthenticator extends AbstractIdentitySer
     }
     
     private User createUser(Authentication auth, Long tenantId) {
-		AccessToken atoken = this.getOidcAccessToken(auth);
+		AccessToken atoken = this.getKeycloakAccessToken(auth);
 		if (atoken == null) {
-    		this.logger.debug("The OIDC access token could not be found; using email to determine names: {}", auth.getName());
+    		this.logger.debug("The keycloak access token could not be found; using email to determine names: {}", auth.getName());
     		Matcher emailNamesMatcher = this.emailNamesPattern.matcher(auth.getName());
     		if (!emailNamesMatcher.matches()) {
         		this.logger.warn("The email address could not be parsed for names: {}", auth.getName());
@@ -166,8 +166,11 @@ public class IdentityServiceActivitiAppAuthenticator extends AbstractIdentitySer
     }
 
     private void syncUserAuthorities(User user, Authentication auth, Long tenantId) {
-    	Set<String> authorities = this.toSet(auth.getAuthorities());
-		this.logger.debug("OIDC authorities: {}", authorities);
+    	Set<String> authorities = this.getRoles(auth);
+    	if (authorities == null) {
+    		this.logger.debug("The user authorities could not be determined; skipping sync: {}", user.getEmail());
+    		return;
+    	}
     	
 		// check Activiti groups
 		User userWithGroups = this.userService.findUserByEmailFetchGroups(user.getEmail());

@@ -106,8 +106,11 @@ public class IdentityServiceActivitiEngineAuthenticator extends AbstractIdentity
     }
 
     private void syncUserAuthorities(User user, Authentication auth) {
-    	Set<String> authorities = this.toSet(auth.getAuthorities());
-		this.logger.debug("OIDC authorities: {}", authorities);
+    	Set<String> authorities = this.getRoles(auth);
+    	if (authorities == null) {
+    		this.logger.debug("The user authorities could not be determined; skipping sync: {}", user.getEmail());
+    		return;
+    	}
     	
 		// check Activiti groups
     	List<Group> groups = this.identityService.createGroupQuery()
