@@ -4,9 +4,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
+import java.util.Date;
 import java.util.List;
-import java.util.Set;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -59,6 +58,12 @@ public class Inteligr8SecurityConfigurationRegistry implements AlfrescoSecurityC
     @Value("${keycloak-ext.default.admins.users:#{null}}")
     private String adminUserStrs;
     
+    @Value("${keycloak-ext.group.admins.name:admins}")
+    private String adminGroupName;
+    
+    @Value("${keycloak-ext.group.admins.externalId:aps-admin}")
+    private String adminGroupExternalId;
+    
     @Value("${keycloak-ext.group.admins.validate:false}")
     private boolean validateAdministratorsGroup;
 	
@@ -103,13 +108,15 @@ public class Inteligr8SecurityConfigurationRegistry implements AlfrescoSecurityC
 			return;
 		
     	Long tenantId = this.findDefaultTenantId();
-		List<Group> groups = this.groupService.getSystemGroupWithName("Administrators", tenantId);
-		if (groups.isEmpty())
-			groups = Arrays.asList(this.groupService.createGroup("Administrators", tenantId, Group.TYPE_SYSTEM_GROUP, null));
+		Group group = this.groupService.getGroupByExternalId(this.adminGroupExternalId);
+		if (group == null) {
+			this.logger.info("Creating '{}' group ...", this.adminGroupName);
+			group = this.groupService.createGroupFromExternalStore(
+					this.adminGroupExternalId, tenantId, Group.TYPE_SYSTEM_GROUP, null, this.adminGroupName, new Date());
+		}
 		
-		this.logger.info("Validating 'Administrators' group ...");
-		for (Group group : groups)
-			this.groupService.addCapabilitiesToGroup(group.getId(), Arrays.asList("access-all-models-in-tenant", "access-editor", "access-reports", "publish-app-to-dashboard", "tenant-admin", "tenant-admin-api", "upload-license"));
+		this.logger.info("Granting '{}' group all capabilities ...", group.getName());
+		this.groupService.addCapabilitiesToGroup(group.getId(), Arrays.asList("access-all-models-in-tenant", "access-editor", "access-reports", "publish-app-to-dashboard", "tenant-admin", "tenant-admin-api", "upload-license"));
 	}
 	
 	private void associateAdmins() {
