@@ -1,17 +1,22 @@
 package com.inteligr8.activiti.keycloak;
 
+import java.util.Arrays;
 import java.util.Date;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import javax.persistence.NonUniqueResultException;
+
 import org.apache.commons.lang3.StringUtils;
 import org.keycloak.representations.AccessToken;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
@@ -58,6 +63,33 @@ public class KeycloakActivitiAppAuthenticator extends AbstractKeycloakActivitiAu
 
     @Autowired
     private GroupService groupService;
+    
+    @Value("${keycloak-ext.group.admins.validate:false}")
+    private boolean validateAdministratorsGroup;
+    
+    @Override
+    public void afterPropertiesSet() {
+    	super.afterPropertiesSet();
+
+    	if (!this.adminUsers.isEmpty()) {
+	    	Long tenantId = this.findDefaultTenantId();
+			List<Group> groups = this.groupService.getSystemGroupWithName("Administrators", tenantId);
+			
+    		if (this.validateAdministratorsGroup) {
+				this.logger.info("Validating 'Administrators' group ...");
+				for (Group group : groups)
+					this.groupService.addCapabilitiesToGroup(group.getId(), Arrays.asList("access-all-models-in-tenant", "access-editor", "access-reports", "publish-app-to-dashboard", "tenant-admin", "tenant-admin-api", "upload-license"));
+    		}
+			
+    		for (String email : this.adminUsers) {
+	    		User user = this.userService.findUserByEmail(email);
+
+	    		this.logger.debug("Adding {} to {}", user.getEmail(), "Administrators");
+	    		for (Group group : groups)
+	    			this.groupService.addUserToGroup(group, user);
+    		}
+    	}
+    }
     
     /**
      * This method validates that the user exists, if not, it creates the
@@ -159,7 +191,7 @@ public class KeycloakActivitiAppAuthenticator extends AbstractKeycloakActivitiAu
 		// check Activiti groups
 		User userWithGroups = this.userService.findUserByEmailFetchGroups(user.getEmail());
 		for (Group group : userWithGroups.getGroups()) {
-			this.logger.trace("Inspecting group: {} => ", group.getId(), group.getName());
+			this.logger.trace("Inspecting group: {} => {}", group.getId(), group.getName());
 			
 			if (group.getExternalId() == null) {
 				// skip APS system groups
@@ -179,7 +211,18 @@ public class KeycloakActivitiAppAuthenticator extends AbstractKeycloakActivitiAu
 		for (Entry<String, String> role : roles.entrySet()) {
 			this.logger.trace("Syncing group membership: {}", role);
 			
-			Group group = this.groupService.getGroupByExternalId(role.getKey());
+			Group group;
+			try {
+				group = this.groupService.getGroupByExternalId(role.getKey());
+			} catch (NonUniqueResultException nure) {
+				if (this.logger.isDebugEnabled()) {
+					// FIXME only added to address a former bug
+					group = this.fixMultipleGroups(role.getKey(), tenantId);
+				} else {
+					throw nure;
+				}
+			}
+			
 			if (group == null) {
 				if (this.createMissingGroup) {
 					this.logger.trace("Creating new group: {}", role);
@@ -197,4 +240,29 @@ public class KeycloakActivitiAppAuthenticator extends AbstractKeycloakActivitiAu
 			}
 		}
     }
+    
+    private Group fixMultipleGroups(String externalId, Long tenantId) {
+    	List<Group> groupsToDelete = new LinkedList<>();
+    	Date earliestDate = new Date();
+    	Group earliestGroup = null;
+    	
+    	for (Group group : this.groupService.getSystemGroups(tenantId)) {
+    		if (externalId.equals(group.getExternalId())) {
+    			if (group.getLastUpdate().before(earliestDate)) {
+    				if (earliestGroup != null)
+    					groupsToDelete.add(earliestGroup);
+    				earliestDate = group.getLastUpdate();
+    				earliestGroup = group;
+    			} else {
+        			groupsToDelete.add(group);
+    			}
+    		}
+    	}
+    	
+    	for (Group group : groupsToDelete)
+    		this.groupService.deleteGroup(group.getId());
+    	
+    	return earliestGroup;
+    }
+    
 }
