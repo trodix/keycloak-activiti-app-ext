@@ -162,7 +162,7 @@ public class KeycloakActivitiAppAuthenticator extends AbstractKeycloakActivitiAu
 		// check Activiti groups
 		User userWithGroups = this.userService.findUserByEmailFetchGroups(user.getEmail());
 		for (Group group : userWithGroups.getGroups()) {
-			this.logger.trace("Inspecting group: {} => {}", group.getId(), group.getName());
+			this.logger.trace("Inspecting group: {} => {} ({})", group.getId(), group.getName(), group.getExternalId());
 			
 			if (group.getExternalId() == null) {
 				// skip APS system groups
