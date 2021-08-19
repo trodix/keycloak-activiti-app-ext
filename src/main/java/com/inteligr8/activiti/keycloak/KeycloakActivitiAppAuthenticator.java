@@ -1,8 +1,9 @@
-package com.inteligr8.activiti.ais;
+package com.inteligr8.activiti.keycloak;
 
 import java.util.Date;
 import java.util.List;
-import java.util.Set;
+import java.util.Map;
+import java.util.Map.Entry;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -11,7 +12,6 @@ import org.keycloak.representations.AccessToken;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
@@ -24,7 +24,6 @@ import com.activiti.service.api.GroupService;
 import com.activiti.service.api.UserService;
 import com.activiti.service.idm.TenantService;
 import com.activiti.service.license.LicenseService;
-import com.inteligr8.activiti.Authenticator;
 
 /**
  * This class/bean implements an Open ID Connect authenticator for Alfresco
@@ -39,29 +38,14 @@ import com.inteligr8.activiti.Authenticator;
  * 
  * @author brian.long@yudrio.com
  */
-@Component("activiti-app.authenticator")
+@Component("keycloak-ext.activiti-app.authenticator")
 @Lazy
-public class IdentityServiceActivitiAppAuthenticator extends AbstractIdentityServiceActivitiAuthenticator implements Authenticator {
+public class KeycloakActivitiAppAuthenticator extends AbstractKeycloakActivitiAuthenticator {
 	
     private final Logger logger = LoggerFactory.getLogger(this.getClass());
     
     private final Pattern emailNamesPattern = Pattern.compile("([A-Za-z]+)[A-Za-z0-9]*\\.([A-Za-z]+)[A-Za-z0-9]*@.*");
     private final String externalIdmSource = "ais";
-    
-    @Value("${keycloak-ext.createMissingUser:true}")
-    private boolean createMissingUser;
-
-    @Value("${keycloak-ext.clearNewUserGroups:true}")
-    private boolean clearNewUserGroups;
-
-    @Value("${keycloak-ext.createMissingGroup:true}")
-    private boolean createMissingGroup;
-
-    @Value("${keycloak-ext.syncGroupAdd:true}")
-    private boolean syncGroupAdd;
-
-    @Value("${keycloak-ext.syncGroupRemove:true}")
-    private boolean syncGroupRemove;
 
     @Autowired
     private LicenseService licenseService;
@@ -116,7 +100,7 @@ public class IdentityServiceActivitiAppAuthenticator extends AbstractIdentitySer
     	User user = this.findUser(auth, tenantId);
 		this.logger.debug("Inspecting user: {} => {}", user.getId(), user.getExternalId());
 		
-    	this.syncUserAuthorities(user, auth, tenantId);
+    	this.syncUserRoles(user, auth, tenantId);
     }
     
     private Long findDefaultTenantId() {
@@ -165,50 +149,51 @@ public class IdentityServiceActivitiAppAuthenticator extends AbstractIdentitySer
 		}
     }
 
-    private void syncUserAuthorities(User user, Authentication auth, Long tenantId) {
-    	Set<String> authorities = this.getRoles(auth);
-    	if (authorities == null) {
-    		this.logger.debug("The user authorities could not be determined; skipping sync: {}", user.getEmail());
+    private void syncUserRoles(User user, Authentication auth, Long tenantId) {
+    	Map<String, String> roles = this.getRoles(auth);
+    	if (roles == null) {
+    		this.logger.debug("The user roles could not be determined; skipping sync: {}", user.getEmail());
     		return;
     	}
     	
 		// check Activiti groups
 		User userWithGroups = this.userService.findUserByEmailFetchGroups(user.getEmail());
 		for (Group group : userWithGroups.getGroups()) {
-			this.logger.trace("Inspecting group: {} => ", group.getId(), group.getExternalId());
+			this.logger.trace("Inspecting group: {} => ", group.getId(), group.getName());
 			
-			if (authorities.remove(group.getExternalId())) {
+			if (group.getExternalId() == null) {
+				// skip APS system groups
+			} else if (roles.remove(group.getExternalId()) != null) {
 				// all good
 			} else {
 				if (this.syncGroupRemove) {
-					this.logger.trace("Removing user '{}' from group '{}'", user.getExternalId(), group.getExternalId());
+					this.logger.trace("Removing user '{}' from group '{}'", user.getExternalId(), group.getName());
 					this.groupService.deleteUserFromGroup(group, userWithGroups);
 				} else {
-					this.logger.debug("User/group membership sync disabled; not removing user from group: {} => {}", user.getExternalId(), group.getExternalId());
+					this.logger.debug("User/group membership sync disabled; not removing user from group: {} => {}", user.getExternalId(), group.getName());
 				}
 			}
 		}
 		
 		// add remaining authorities into Activiti
-		for (String authority : authorities) {
-			this.logger.trace("Syncing group membership: {}", authority);
+		for (Entry<String, String> role : roles.entrySet()) {
+			this.logger.trace("Syncing group membership: {}", role);
 			
-			Group group = this.groupService.getGroupByExternalId(authority);
+			Group group = this.groupService.getGroupByExternalId(role.getKey());
 			if (group == null) {
 				if (this.createMissingGroup) {
-					this.logger.trace("Creating new group: {}", authority);
-					String shortAuthority = authority.replaceFirst("[A-Z]+_", "");
-					group = this.groupService.createGroupFromExternalStore(shortAuthority, tenantId, Group.TYPE_SYSTEM_GROUP, null, authority, new Date());
+					this.logger.trace("Creating new group: {}", role);
+					group = this.groupService.createGroupFromExternalStore(role.getValue(), tenantId, Group.TYPE_SYSTEM_GROUP, null, role.getKey(), new Date());
 				} else {
-	    			this.logger.debug("Group does not exist; group creation is disabled: {}", authority);
+	    			this.logger.debug("Group does not exist; group creation is disabled: {}", role);
 				}
 			}
 
 			if (group != null && this.syncGroupAdd) {
-				this.logger.trace("Adding user '{}' from group '{}'", user.getExternalId(), group.getExternalId());
+				this.logger.trace("Adding user '{}' to group '{}'", user.getExternalId(), group.getName());
 				this.groupService.addUserToGroup(group, userWithGroups);
 			} else {
-				this.logger.debug("User/group membership sync disabled; not adding user to group: {} => {}", user.getExternalId(), group.getExternalId());
+				this.logger.debug("User/group membership sync disabled; not adding user to group: {} => {}", user.getExternalId(), group.getName());
 			}
 		}
     }
