@@ -1,5 +1,6 @@
 package com.inteligr8.activiti.keycloak;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -61,10 +62,14 @@ public abstract class AbstractKeycloakActivitiAuthenticator implements Authentic
     @Value("${keycloak-ext.group.exclude.regex.patterns:#{null}}")
     protected String regexExcludes;
     
+    @Value("${keycloak-ext.default.admins.users:#{null}}")
+    private String adminUserStrs;
+    
     protected final List<Pair<Pattern, String>> groupFormatters = new LinkedList<>();
     protected final Set<Pattern> resourceIncludes = new HashSet<>();
     protected final Set<Pattern> groupIncludes = new HashSet<>();
     protected final Set<Pattern> groupExcludes = new HashSet<>();
+    protected final Set<String> adminUsers = new HashSet<>();
     
     @Override
     public void afterPropertiesSet() {
@@ -95,6 +100,9 @@ public abstract class AbstractKeycloakActivitiAuthenticator implements Authentic
     		for (int i = 0; i < regexPatternStrs.length; i++)
     			this.groupExcludes.add(Pattern.compile(regexPatternStrs[i]));
     	}
+    	
+    	if (this.adminUserStrs != null && this.adminUserStrs.length() > 0)
+    		this.adminUsers.addAll(Arrays.asList(this.adminUserStrs.split(",")));
     }
     
 
