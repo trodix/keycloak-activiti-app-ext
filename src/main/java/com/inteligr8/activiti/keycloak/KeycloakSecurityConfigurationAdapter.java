@@ -1,6 +1,6 @@
+package com.inteligr8.activiti.keycloak;
 
-package com.inteligr8.activiti.ais;
-
+import org.keycloak.adapters.springsecurity.authentication.KeycloakAuthenticationProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -11,37 +11,28 @@ import org.springframework.security.core.authority.mapping.SimpleAuthorityMapper
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.stereotype.Component;
 
-import com.activiti.api.msmt.MsmtTenantResolver;
-import com.activiti.conf.MsmtProperties;
-import com.activiti.security.identity.service.authentication.provider.IdentityServiceAuthenticationProvider;
 import com.inteligr8.activiti.ActivitiSecurityConfigAdapter;
 import com.inteligr8.activiti.auth.Authenticator;
 import com.inteligr8.activiti.auth.InterceptingAuthenticationProvider;
 
 /**
- * This class/bean injects a custom AIS authentication provider into the
+ * This class/bean injects a custom keycloak authentication provider into the
  * security configuration.
  * 
  * @author brian@inteligr8.com
- * @see com.activiti.security.identity.service.authentication.provider.IdentityServiceAuthenticationProvider
+ * @see org.keycloak.adapters.springsecurity.authentication.KeycloakAuthenticationProvider
  */
 @Component
-public class IdentityServiceSecurityConfigurationAdapter implements ActivitiSecurityConfigAdapter {
+public class KeycloakSecurityConfigurationAdapter implements ActivitiSecurityConfigAdapter {
 	
     private final Logger logger = LoggerFactory.getLogger(this.getClass());
     
-    @Value("${keycloak-ext.ais.enabled:false}")
+    @Value("${keycloak-ext.keycloak.enabled:false}")
     private boolean enabled;
 
 	// this assures execution before the OOTB impl (-10 < 0)
-    @Value("${keycloak-ext.ais.priority:-10}")
+    @Value("${keycloak-ext.keycloak.priority:-5}")
     private int priority;
-    
-    @Autowired
-    protected MsmtProperties msmtProperties;
-
-    @Autowired(required = false) // Only when multi-schema multi-tenant is enabled
-    protected MsmtTenantResolver tenantResolver;
     
     @Autowired
     @Qualifier("keycloak-ext.activiti-app.authenticator")
@@ -65,12 +56,9 @@ public class IdentityServiceSecurityConfigurationAdapter implements ActivitiSecu
 	public void configureGlobal(AuthenticationManagerBuilder auth, UserDetailsService userDetailsService) {
 		this.logger.trace("configureGlobal()");
 		
-		this.logger.info("Using AIS authentication extension, featuring creation of missing users and authority synchronization");
+		this.logger.info("Using Keycloak authentication extension, featuring creation of missing users and authority synchronization");
 		
-		IdentityServiceAuthenticationProvider provider = new IdentityServiceAuthenticationProvider();
-        if (this.msmtProperties.isMultiSchemaMultiTenantEnabled())
-            provider.setTenantResolver(this.tenantResolver);
-        provider.setUserDetailsService(userDetailsService);
+		KeycloakAuthenticationProvider provider = new KeycloakAuthenticationProvider();
 		provider.setGrantedAuthoritiesMapper(new SimpleAuthorityMapper());
 
 		auth.authenticationProvider(new InterceptingAuthenticationProvider(provider, this.getAuthenticator()));

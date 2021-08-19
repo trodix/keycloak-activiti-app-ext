@@ -4,7 +4,7 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>com.inteligr8.activiti</groupId>
 	<artifactId>keycloak-activiti-app-ext</artifactId>
-	<version>1.0.1</version>
+	<version>1.1.0</version>
 	<name>Keycloak Authentication &amp; Authorization for APS</name>
 
 	<properties>
