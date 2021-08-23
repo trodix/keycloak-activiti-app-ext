@@ -1,7 +1,6 @@
 package com.inteligr8.activiti.keycloak;
 
 import java.util.Date;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -15,6 +14,7 @@ import org.keycloak.representations.AccessToken;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
@@ -61,6 +61,17 @@ public class KeycloakActivitiAppAuthenticator extends AbstractKeycloakActivitiAu
 
     @Autowired
     private GroupService groupService;
+
+    @Value("${keycloak-ext.syncGroupAs:organization}")
+    protected String syncGroupAs;
+    
+    protected boolean syncGroupAsOrganization() {
+    	return !this.syncGroupAsCapability();
+    }
+    
+    protected boolean syncGroupAsCapability() {
+    	return this.syncGroupAs != null && this.syncGroupAs.toLowerCase().startsWith("cap");
+    }
     
     /**
      * This method validates that the user exists, if not, it creates the
@@ -79,16 +90,26 @@ public class KeycloakActivitiAppAuthenticator extends AbstractKeycloakActivitiAu
 	    		user = this.createUser(auth, tenantId);
 	    		this.logger.debug("Created user: {} => {}", user.getId(), user.getExternalId());
 	    		
-	    		if (this.clearNewUserGroups) {
+	    		if (this.clearNewUserDefaultGroups) {
 		    		this.logger.debug("Clearing groups: {}", user.getId());
 	    			// fetch and remove default groups
-	    			user = this.userService.findUserByEmailFetchGroups(user.getEmail());
+	    			user = this.userService.getUser(user.getId(), true);
 	    			for (Group group : user.getGroups())
 	    				this.groupService.deleteUserFromGroup(group, user);
 	    		}
     		} else {
     			this.logger.info("User does not exist; user creation is disabled: {}", auth.getName());
     		}
+    	} else if (user.getExternalOriginalSrc() == null || user.getExternalOriginalSrc().length() == 0) {
+    		this.logger.debug("User exists, but not created by an external source: {}", auth.getName());
+    		this.logger.info("Linking user '{}' with external IDM '{}'", auth.getName(), this.externalIdmSource);
+    		user.setExternalId(auth.getName());
+    		user.setExternalOriginalSrc(this.externalIdmSource);
+    		this.userService.save(user);
+    	} else if (!this.externalIdmSource.equals(user.getExternalOriginalSrc())) {
+    		this.logger.debug("User '{}' exists, but created by another source: {}", auth.getName(), user.getExternalOriginalSrc());
+    	} else {
+    		this.logger.trace("User already exists: {}", auth.getName());
     	}
     }
     
@@ -141,7 +162,7 @@ public class KeycloakActivitiAppAuthenticator extends AbstractKeycloakActivitiAu
     		Matcher emailNamesMatcher = this.emailNamesPattern.matcher(auth.getName());
     		if (!emailNamesMatcher.matches()) {
         		this.logger.warn("The email address could not be parsed for names: {}", auth.getName());
-    			return this.userService.createNewUserFromExternalStore(auth.getName(), "Unknown", "User", tenantId, auth.getName(), this.externalIdmSource, new Date());
+    			return this.userService.createNewUserFromExternalStore(auth.getName(), "Unknown", "Person", tenantId, auth.getName(), this.externalIdmSource, new Date());
     		} else {
     			String firstName = StringUtils.capitalize(emailNamesMatcher.group(1));
     			String lastName = StringUtils.capitalize(emailNamesMatcher.group(2));
@@ -153,22 +174,28 @@ public class KeycloakActivitiAppAuthenticator extends AbstractKeycloakActivitiAu
     }
 
     private void syncUserRoles(User user, Authentication auth, Long tenantId) {
-    	Map<String, String> roles = this.getRoles(auth);
+    	Map<String, String> roles = this.getKeycloakRoles(auth);
     	if (roles == null) {
     		this.logger.debug("The user roles could not be determined; skipping sync: {}", user.getEmail());
     		return;
     	}
     	
+    	boolean syncAsOrg = this.syncGroupAsOrganization();
+    	
 		// check Activiti groups
-		User userWithGroups = this.userService.findUserByEmailFetchGroups(user.getEmail());
+		User userWithGroups = this.userService.getUser(user.getId(), true);
 		for (Group group : userWithGroups.getGroups()) {
+			if (group.getExternalId() == null && !this.syncInternalGroups)
+				continue;
+			
 			this.logger.trace("Inspecting group: {} => {} ({})", group.getId(), group.getName(), group.getExternalId());
 			
-			if (group.getExternalId() == null) {
-				// skip APS system groups
-			} else if (roles.remove(group.getExternalId()) != null) {
-				// all good
+			if (group.getExternalId() != null && this.removeMapEntriesByValue(roles, this.apsGroupExternalIdToKeycloakRole(group.getExternalId()))) {
+				// role already existed and the user is already a member
+			} else if (group.getExternalId() == null && roles.remove(this.apsGroupNameToKeycloakRole(group.getName())) != null) {
+				// internal role already existed and the user is already a member
 			} else {
+				// at this point, we have a group that the user does not have a corresponding role for
 				if (this.syncGroupRemove) {
 					this.logger.trace("Removing user '{}' from group '{}'", user.getExternalId(), group.getName());
 					this.groupService.deleteUserFromGroup(group, userWithGroups);
@@ -184,20 +211,29 @@ public class KeycloakActivitiAppAuthenticator extends AbstractKeycloakActivitiAu
 			
 			Group group;
 			try {
-				group = this.groupService.getGroupByExternalId(role.getKey());
+				group = this.groupService.getGroupByExternalIdAndTenantId(this.keycloakRoleToApsGroupExternalId(role.getKey()), tenantId);
 			} catch (NonUniqueResultException nure) {
-				if (this.logger.isDebugEnabled()) {
-					// FIXME only added to address a former bug
-					group = this.fixMultipleGroups(role.getKey(), tenantId);
-				} else {
-					throw nure;
+				this.logger.warn("There are multiple groups with the external ID; not adding user to group: {}", role.getKey());
+				continue;
+			}
+
+			if (group == null) {
+				List<Group> groups = this.groupService.getGroupByNameAndTenantId(this.keycloakRoleToApsGroupName(role.getValue()), tenantId);
+				if (groups.size() > 1) {
+					this.logger.warn("There are multiple groups with the same name; not adding user to group: {}", role.getValue());
+					continue;
+				} else if (groups.size() == 1) {
+					group = groups.iterator().next();
 				}
 			}
 			
 			if (group == null) {
 				if (this.createMissingGroup) {
 					this.logger.trace("Creating new group: {}", role);
-					group = this.groupService.createGroupFromExternalStore(role.getValue(), tenantId, Group.TYPE_SYSTEM_GROUP, null, role.getKey(), new Date());
+					String name = this.keycloakRoleToApsGroupName(role.getValue());
+					String externalId = this.keycloakRoleToApsGroupExternalId(role.getKey());
+					int type = syncAsOrg ? Group.TYPE_FUNCTIONAL_GROUP : Group.TYPE_SYSTEM_GROUP;
+					group = this.groupService.createGroupFromExternalStore(name, tenantId, type, null, externalId, new Date());
 				} else {
 	    			this.logger.debug("Group does not exist; group creation is disabled: {}", role);
 				}
@@ -212,28 +248,21 @@ public class KeycloakActivitiAppAuthenticator extends AbstractKeycloakActivitiAu
 		}
     }
     
-    private Group fixMultipleGroups(String externalId, Long tenantId) {
-    	List<Group> groupsToDelete = new LinkedList<>();
-    	Date earliestDate = new Date();
-    	Group earliestGroup = null;
-    	
-    	for (Group group : this.groupService.getSystemGroups(tenantId)) {
-    		if (externalId.equals(group.getExternalId())) {
-    			if (group.getLastUpdate().before(earliestDate)) {
-    				if (earliestGroup != null)
-    					groupsToDelete.add(earliestGroup);
-    				earliestDate = group.getLastUpdate();
-    				earliestGroup = group;
-    			} else {
-        			groupsToDelete.add(group);
-    			}
-    		}
-    	}
-    	
-    	for (Group group : groupsToDelete)
-    		this.groupService.deleteGroup(group.getId());
-    	
-    	return earliestGroup;
+    private String keycloakRoleToApsGroupExternalId(String role) {
+    	return this.externalIdmSource + "_" + role;
+    }
+    
+    private String apsGroupExternalIdToKeycloakRole(String externalId) {
+    	int underscorePos = externalId.indexOf('_');
+    	return underscorePos < 0 ? externalId : externalId.substring(underscorePos + 1);
+    }
+    
+    private String keycloakRoleToApsGroupName(String role) {
+    	return role;
+    }
+    
+    private String apsGroupNameToKeycloakRole(String externalId) {
+    	return externalId;
     }
     
 }

@@ -5,7 +5,9 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -17,6 +19,7 @@ import org.springframework.stereotype.Component;
 
 import com.activiti.api.security.AlfrescoSecurityConfigOverride;
 import com.activiti.domain.idm.Group;
+import com.activiti.domain.idm.GroupCapability;
 import com.activiti.domain.idm.Tenant;
 import com.activiti.domain.idm.User;
 import com.activiti.service.api.GroupService;
@@ -40,6 +43,15 @@ public class Inteligr8SecurityConfigurationRegistry implements AlfrescoSecurityC
 	
     private final Logger logger = LoggerFactory.getLogger(this.getClass());
     
+    private final List<String> adminCapabilities = Arrays.asList(
+    		"access-all-models-in-tenant",
+    		"access-editor",
+    		"access-reports",
+    		"publish-app-to-dashboard",
+    		"tenant-admin",
+    		"tenant-admin-api",
+    		"upload-license");
+    
     @Autowired
     private List<ActivitiSecurityConfigAdapter> adapters;
     
@@ -61,7 +73,7 @@ public class Inteligr8SecurityConfigurationRegistry implements AlfrescoSecurityC
     @Value("${keycloak-ext.group.admins.name:admins}")
     private String adminGroupName;
     
-    @Value("${keycloak-ext.group.admins.externalId:aps-admin}")
+    @Value("${keycloak-ext.group.admins.externalId:#{null}}")
     private String adminGroupExternalId;
     
     @Value("${keycloak-ext.group.admins.validate:false}")
@@ -108,15 +120,32 @@ public class Inteligr8SecurityConfigurationRegistry implements AlfrescoSecurityC
 			return;
 		
     	Long tenantId = this.findDefaultTenantId();
-		Group group = this.groupService.getGroupByExternalId(this.adminGroupExternalId);
+		Group group = this.groupService.getGroupByExternalIdAndTenantId(this.adminGroupExternalId, tenantId);
 		if (group == null) {
-			this.logger.info("Creating '{}' group ...", this.adminGroupName);
-			group = this.groupService.createGroupFromExternalStore(
-					this.adminGroupExternalId, tenantId, Group.TYPE_SYSTEM_GROUP, null, this.adminGroupName, new Date());
+			List<Group> groups = this.groupService.getGroupByNameAndTenantId(this.adminGroupName, tenantId);
+			if (!groups.isEmpty())
+				group = groups.iterator().next();
 		}
-		
-		this.logger.info("Granting '{}' group all capabilities ...", group.getName());
-		this.groupService.addCapabilitiesToGroup(group.getId(), Arrays.asList("access-all-models-in-tenant", "access-editor", "access-reports", "publish-app-to-dashboard", "tenant-admin", "tenant-admin-api", "upload-license"));
+
+		if (group == null) {
+			this.logger.info("Creating group: {} ({})", this.adminGroupName, this.adminGroupExternalId);
+			if (this.adminGroupExternalId != null) {
+				group = this.groupService.createGroupFromExternalStore(
+						this.adminGroupExternalId, tenantId, Group.TYPE_SYSTEM_GROUP, null, this.adminGroupName, new Date());
+			} else {
+				group = this.groupService.createGroup(this.adminGroupName, tenantId, Group.TYPE_SYSTEM_GROUP, null);
+			}
+		}
+
+		this.logger.debug("Checking group capabilities: {}", group.getName());
+		Group groupWithCaps = this.groupService.getGroup(group.getId(), false, true, false, false);
+		Set<String> adminCaps = new HashSet<>(this.adminCapabilities);
+		for (GroupCapability cap : groupWithCaps.getCapabilities())
+			adminCaps.remove(cap.getName());
+		if (!adminCaps.isEmpty()) {
+			this.logger.info("Granting group '{}' capabilities: {}", group.getName(), adminCaps);
+			this.groupService.addCapabilitiesToGroup(group.getId(), new ArrayList<>(adminCaps));
+		}
 	}
 	
 	private void associateAdmins() {
