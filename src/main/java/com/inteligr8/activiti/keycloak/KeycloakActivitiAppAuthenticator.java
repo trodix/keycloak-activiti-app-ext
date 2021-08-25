@@ -48,7 +48,6 @@ public class KeycloakActivitiAppAuthenticator extends AbstractKeycloakActivitiAu
     private final Logger logger = LoggerFactory.getLogger(this.getClass());
     
     private final Pattern emailNamesPattern = Pattern.compile("([A-Za-z]+)[A-Za-z0-9]*\\.([A-Za-z]+)[A-Za-z0-9]*@.*");
-    private final String externalIdmSource = "ais";
 
     @Autowired
     private LicenseService licenseService;
@@ -61,6 +60,9 @@ public class KeycloakActivitiAppAuthenticator extends AbstractKeycloakActivitiAu
 
     @Autowired
     private GroupService groupService;
+    
+    @Value("${keycloak-ext.external.id:ais}")
+    protected String externalIdmSource;
 
     @Value("${keycloak-ext.syncGroupAs:organization}")
     protected String syncGroupAs;
@@ -217,22 +219,28 @@ public class KeycloakActivitiAppAuthenticator extends AbstractKeycloakActivitiAu
 				continue;
 			}
 
-			if (group == null) {
+			if (group == null && this.syncInternalGroups) {
 				List<Group> groups = this.groupService.getGroupByNameAndTenantId(this.keycloakRoleToApsGroupName(role.getValue()), tenantId);
 				if (groups.size() > 1) {
 					this.logger.warn("There are multiple groups with the same name; not adding user to group: {}", role.getValue());
 					continue;
 				} else if (groups.size() == 1) {
 					group = groups.iterator().next();
+					this.logger.debug("Found an internal group; registering as external: {}", group.getName());
+					group.setExternalId(this.keycloakRoleToApsGroupExternalId(role.getKey()));
+					group.setLastSyncTimeStamp(new Date());
+					group.setLastUpdate(new Date());
+					this.groupService.save(group);
 				}
 			}
 			
 			if (group == null) {
 				if (this.createMissingGroup) {
-					this.logger.trace("Creating new group: {}", role);
+					this.logger.trace("Creating new group for role: {}", role);
 					String name = this.keycloakRoleToApsGroupName(role.getValue());
 					String externalId = this.keycloakRoleToApsGroupExternalId(role.getKey());
 					int type = syncAsOrg ? Group.TYPE_FUNCTIONAL_GROUP : Group.TYPE_SYSTEM_GROUP;
+					this.logger.trace("Creating new group: {} ({}) [type: {}]", name, externalId, type);
 					group = this.groupService.createGroupFromExternalStore(name, tenantId, type, null, externalId, new Date());
 				} else {
 	    			this.logger.debug("Group does not exist; group creation is disabled: {}", role);

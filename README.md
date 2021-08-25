@@ -37,12 +37,14 @@ The library is highly configurable.  You configure it with properties specified 
 | `keycloak-ext.group.format.regex.replacements` |           | Reformat roles with the specified replacement expressions.  The regular expressions are specified in another property.  Multiple expressions may be specified by using commas.  Whitespace is not stripped. |
 | `keycloak-ext.group.include.regex.patterns`    |           | If specified, only the roles that match the specified regular expressions will be considered; otherwise all roles are included. |
 | `keycloak-ext.group.exclude.regex.patterns`    |           | If specified, the roles that match the specified regular expressions will be ignored.  This overrides any role explicitly included. |
+| `keycloak-ext.syncInternalGroup`               | `false`   | If an internal group with the same name already exists, use that group instead of creating a new one with the same name.  Also register that internal group as external. |
 
 ### For Activiti App Only
 
 | Property                                  | Default        | Description |
-| -------------------------------------   - | -------------- | ----------- |
+| ----------------------------------------- | -------------- | ----------- |
 | `keycloak-ext.syncGroupAs`                | `organization` | When creating a new group, should it be a functional (`organization`) group or a system (`capability`) group? |
+| `keycloak-ext.external.id`                | `ais`            | When creating a new group or registering an internal group as external, use this ID as a prefix to the external group ID. |
 
 ### Rare
 
@@ -56,8 +58,6 @@ The library is highly configurable.  You configure it with properties specified 
 | `keycloak-ext.createMissingGroup`         | `true`          | Before authorization, check to make sure groups exist for the roles the user claims; if they don't, create the groups. |
 | `keycloak-ext.syncGroupAdd`               | `true`          | If the user belongs to a role but not its corresponding group, add the user to the group. |
 | `keycloak-ext.syncGroupRemove`            | `true`          | If the user belongs to a group but does not have the corresponding role, remove the user from the group. |
-| `keycloak-ext.syncInternalGroup`          | `false`         | If an internal group with the same name already exists, use that group instead of creating a new one with the same name. |
-| `keycloak-ext.syncInternalGroup`          | `false`         | If an internal group with the same name already exists, use that group instead of creating a new one with the same name. |
 
 ### Untested
 

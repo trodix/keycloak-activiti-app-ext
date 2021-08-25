@@ -78,12 +78,21 @@
 			<id>activiti-releases</id>
 			<url>https://artifacts.alfresco.com/nexus/content/repositories/activiti-enterprise-releases</url>
 		</repository>
+		<repository>
+			<id>inteligr8-releases</id>
+			<url>https://repos.inteligr8.com/nexus/repository/inteligr8-private</url>
+		</repository>
 	</repositories>
 	
-	<pluginRepositories>
-		<pluginRepository>
+	<distributionManagement>
+		<repository>
 			<id>inteligr8-releases</id>
-			<url>https://repos.inteligr8.com/nexus/repository/inteligr8-public</url>
-		</pluginRepository>
-	</pluginRepositories>
+			<url>https://repos.inteligr8.com/nexus/repository/inteligr8-private</url>
+		</repository>
+		<snapshotRepository>
+			<id>inteligr8-snapshots</id>
+			<url>https://repos.inteligr8.com/nexus/repository/inteligr8-snapshots</url>
+		</snapshotRepository>
+	</distributionManagement>
+	
 </project>
