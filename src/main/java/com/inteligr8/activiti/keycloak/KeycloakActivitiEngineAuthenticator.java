@@ -48,7 +48,7 @@ public class KeycloakActivitiEngineAuthenticator extends AbstractKeycloakActivit
         		user = this.createUser(auth);
 	    		this.logger.debug("Created user: {} => {}", user.getId(), user.getEmail());
         		
-        		if (this.clearNewUserGroups) {
+        		if (this.clearNewUserDefaultGroups) {
 		    		this.logger.debug("Clearing groups: {}", user.getId());
 	        		List<Group> groups = this.identityService.createGroupQuery()
 	        				.groupMember(user.getId())
@@ -93,7 +93,7 @@ public class KeycloakActivitiEngineAuthenticator extends AbstractKeycloakActivit
     }
 
     private void syncUserRoles(User user, Authentication auth) {
-    	Map<String, String> roles = this.getRoles(auth);
+    	Map<String, String> roles = this.getKeycloakRoles(auth);
     	if (roles == null) {
     		this.logger.debug("The user roles could not be determined; skipping sync: {}", user.getEmail());
     		return;
@@ -105,11 +105,11 @@ public class KeycloakActivitiEngineAuthenticator extends AbstractKeycloakActivit
     			.list();
 		this.logger.debug("User is currently a member of {} groups", groups.size());
     	for (Group group : groups) {
-    		if (!group.getId().startsWith(this.groupPrefix))
+    		if (!group.getId().startsWith(this.groupPrefix) && this.syncInternalGroups)
     			continue;
     		
     		this.logger.trace("Inspecting group: {} => {} ({})", group.getId(), group.getName(), group.getType());
-    		if (roles.remove(group.getId().substring(this.groupPrefix.length())) != null) {
+    		if (roles.remove(this.activitiGroupIdToKeycloakRole(group.getId())) != null) {
         		this.logger.trace("Group and membership already exist: {} => {}", user.getEmail(), group.getName());
     			// already a member of the group
     		} else {
@@ -129,16 +129,16 @@ public class KeycloakActivitiEngineAuthenticator extends AbstractKeycloakActivit
     		this.logger.trace("Inspecting role: {}", role);
     		
     		Group group = this.identityService.createGroupQuery()
-    				.groupId(this.groupPrefix + role.getKey())
+    				.groupId(this.keycloakRoleToActivitiGroupId(role.getKey()))
     				.singleResult();
     		if (group == null) {
     			if (this.createMissingGroup) {
 	        		this.logger.trace("Group does not exist; creating one");
-	        		group = this.identityService.newGroup(this.groupPrefix + role.getKey());
+	        		group = this.identityService.newGroup(this.keycloakRoleToActivitiGroupId(role.getKey()));
 	        		group.setName(role.getValue());
 	        		this.identityService.saveGroup(group);
     			} else {
-        			this.logger.info("User does not exist; user creation is disabled: {}", auth.getName());
+        			this.logger.info("Group does not exist; group creation is disabled: {}", role.getKey());
     			}
     		}
 
@@ -149,6 +149,14 @@ public class KeycloakActivitiEngineAuthenticator extends AbstractKeycloakActivit
 				this.logger.debug("User/group membership sync disabled; not adding user to group: {} => {}", user.getId(), group.getId());
     		}
     	}
+    }
+    
+    private String keycloakRoleToActivitiGroupId(String role) {
+    	return this.groupPrefix + role;
+    }
+    
+    private String activitiGroupIdToKeycloakRole(String groupId) {
+    	return groupId.startsWith(this.groupPrefix) ? groupId.substring(this.groupPrefix.length()) : groupId;
     }
     
 }

@@ -3,6 +3,7 @@ package com.inteligr8.activiti.keycloak;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -34,8 +35,8 @@ public abstract class AbstractKeycloakActivitiAuthenticator implements Authentic
     @Value("${keycloak-ext.createMissingUser:true}")
     protected boolean createMissingUser;
 
-    @Value("${keycloak-ext.clearNewUserGroups:true}")
-    protected boolean clearNewUserGroups;
+    @Value("${keycloak-ext.clearNewUserDefaultGroups:true}")
+    protected boolean clearNewUserDefaultGroups;
 
     @Value("${keycloak-ext.createMissingGroup:true}")
     protected boolean createMissingGroup;
@@ -45,6 +46,9 @@ public abstract class AbstractKeycloakActivitiAuthenticator implements Authentic
 
     @Value("${keycloak-ext.syncGroupRemove:true}")
     protected boolean syncGroupRemove;
+
+    @Value("${keycloak-ext.syncInternalGroups:false}")
+    protected boolean syncInternalGroups;
     
     @Value("${keycloak-ext.resource.include.regex.patterns:#{null}}")
     protected String resourceRegexIncludes;
@@ -99,7 +103,7 @@ public abstract class AbstractKeycloakActivitiAuthenticator implements Authentic
     
 
     
-    protected Map<String, String> getRoles(Authentication auth) {
+    protected Map<String, String> getKeycloakRoles(Authentication auth) {
     	Map<String, String> authorities = new HashMap<>();
 		
 		AccessToken atoken = this.getKeycloakAccessToken(auth);
@@ -232,6 +236,24 @@ public abstract class AbstractKeycloakActivitiAuthenticator implements Authentic
 				this.logger.debug("Principal type: {}", auth.getPrincipal().getClass());
 			return null;
 		}
+    }
+    
+    protected <K, V> boolean removeMapEntriesByValue(Map<K, V> map, V value) {
+    	if (value == null)
+    		throw new IllegalArgumentException();
+    	
+    	int found = 0;
+    	
+    	Iterator<Entry<K, V>> i = map.entrySet().iterator();
+    	while (i.hasNext()) {
+    		Entry<K, V> entry = i.next();
+    		if (entry.getValue() != null && value.equals(entry.getValue())) {
+    			i.remove();
+    			found++;
+    		}
+    	}
+    	
+    	return found > 0;
     }
     
     protected Set<String> toSet(Collection<? extends GrantedAuthority> grantedAuthorities) {
