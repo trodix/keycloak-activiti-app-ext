@@ -67,6 +67,9 @@ public class Inteligr8SecurityConfigurationRegistry implements AlfrescoSecurityC
     @Autowired(required = false)
     private GroupService groupService;
     
+    @Value("${keycloak-ext.tenant:#{null}}")
+    private String tenant;
+    
     @Value("${keycloak-ext.default.admins.users:#{null}}")
     private String adminUserStrs;
     
@@ -107,11 +110,15 @@ public class Inteligr8SecurityConfigurationRegistry implements AlfrescoSecurityC
 		if (this.groupService == null)
 			return;
 		
-		Long tenantId = this.findDefaultTenantId();
-		if (tenantId != null) {
-			// not first boot
-			this.logger.trace("Functional groups: {}", this.toGroupNames(this.groupService.getFunctionalGroups(tenantId)));
-			this.logger.trace("System groups: {}", this.toGroupNames(this.groupService.getSystemGroups(tenantId)));
+		List<Object[]> tenantObjs = this.tenantService.getAllTenants();
+		for (Object[] tenantObj : tenantObjs) {
+			Long tenantId = (Long)tenantObj[0];
+			if (tenantId != null) {
+				Tenant tenant = this.tenantService.getTenant(tenantId);
+				this.logger.trace("Tenant: {} => {}", tenantId, tenant.getName());
+				this.logger.trace("Functional groups: {}", this.toGroupNames(this.groupService.getFunctionalGroups(tenantId)));
+				this.logger.trace("System groups: {}", this.toGroupNames(this.groupService.getSystemGroups(tenantId)));
+			}
 		}
 	}
 	
@@ -119,7 +126,7 @@ public class Inteligr8SecurityConfigurationRegistry implements AlfrescoSecurityC
 		if (this.groupService == null)
 			return;
 		
-    	Long tenantId = this.findDefaultTenantId();
+    	Long tenantId = this.findTenantId();
 		Group group = this.groupService.getGroupByExternalIdAndTenantId(this.adminGroupExternalId, tenantId);
 		if (group == null) {
 			List<Group> groups = this.groupService.getGroupByNameAndTenantId(this.adminGroupName, tenantId);
@@ -155,24 +162,31 @@ public class Inteligr8SecurityConfigurationRegistry implements AlfrescoSecurityC
 		List<String> adminUsers = Arrays.asList(this.adminUserStrs.split(","));
 		if (adminUsers.isEmpty())
 			return;
-		
-    	Long tenantId = this.findDefaultTenantId();
-		List<Group> groups = this.groupService.getSystemGroupWithName("Administrators", tenantId);
+
+    	Long tenantId = this.findTenantId();
+    	List<Group> groups;
+		Group group1 = this.groupService.getGroupByExternalIdAndTenantId(this.adminGroupExternalId, tenantId);
+		if (group1 != null) {
+			groups = Arrays.asList(group1);
+		} else {
+			groups = this.groupService.getGroupByNameAndTenantId(this.adminGroupName, tenantId);
+		}
+		this.logger.debug("Found {} admin group(s)", groups.size());
 		
 		for (String email : adminUsers) {
     		User user = this.userService.findUserByEmail(email);
 
-    		this.logger.debug("Adding {} to {}", user.getEmail(), "Administrators");
+    		this.logger.debug("Adding {} to admin group(s)", user.getEmail());
     		for (Group group : groups)
     			this.groupService.addUserToGroup(group, user);
 		}
 	}
     
-    private Long findDefaultTenantId() {
-    	String defaultTenantName = this.licenseService.getDefaultTenantName();
-		this.logger.trace("Default Tenant: {}", defaultTenantName);
+    private Long findTenantId() {
+    	String tenantName = this.tenant == null ? this.licenseService.getDefaultTenantName() : this.tenant;
+		this.logger.trace("Using Tenant: {}", tenantName);
 		
-    	List<Tenant> tenants = this.tenantService.findTenantsByName(defaultTenantName);
+    	List<Tenant> tenants = this.tenantService.findTenantsByName(tenantName);
     	if (tenants == null || tenants.isEmpty()) {
     		this.logger.warn("Default tenant not found");
     		return null;
