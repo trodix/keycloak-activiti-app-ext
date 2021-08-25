@@ -87,7 +87,7 @@
 	<distributionManagement>
 		<repository>
 			<id>inteligr8-releases</id>
-			<url>https://repos.inteligr8.com/nexus/repository/inteligr8-private</url>
+			<url>https://repos.inteligr8.com/nexus/repository/inteligr8-public</url>
 		</repository>
 		<snapshotRepository>
 			<id>inteligr8-snapshots</id>
