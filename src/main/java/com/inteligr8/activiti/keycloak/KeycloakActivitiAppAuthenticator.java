@@ -61,6 +61,9 @@ public class KeycloakActivitiAppAuthenticator extends AbstractKeycloakActivitiAu
     @Autowired
     private GroupService groupService;
     
+    @Value("${keycloak-ext.tenant:#{null}}")
+    private String tenant;
+    
     @Value("${keycloak-ext.external.id:ais}")
     protected String externalIdmSource;
 
@@ -81,7 +84,7 @@ public class KeycloakActivitiAppAuthenticator extends AbstractKeycloakActivitiAu
      */
     @Override
     public void preAuthenticate(Authentication auth) throws AuthenticationException { 
-    	Long tenantId = this.findDefaultTenantId();
+    	Long tenantId = this.findTenantId();
 		this.logger.trace("Tenant ID: {}", tenantId);
 		
     	User user = this.findUser(auth, tenantId);
@@ -122,20 +125,20 @@ public class KeycloakActivitiAppAuthenticator extends AbstractKeycloakActivitiAu
      */
     @Override
     public void postAuthenticate(Authentication auth) throws AuthenticationException {
-    	Long tenantId = this.findDefaultTenantId();
+    	Long tenantId = this.findTenantId();
     	User user = this.findUser(auth, tenantId);
 		this.logger.debug("Inspecting user: {} => {}", user.getId(), user.getExternalId());
 		
     	this.syncUserRoles(user, auth, tenantId);
     }
     
-    private Long findDefaultTenantId() {
-    	String defaultTenantName = this.licenseService.getDefaultTenantName();
-		this.logger.trace("Default Tenant: {}", defaultTenantName);
+    private Long findTenantId() {
+    	String tenantName = this.tenant == null ? this.licenseService.getDefaultTenantName() : this.tenant;
+		this.logger.trace("Using Tenant: {}", tenantName);
 		
-    	List<Tenant> tenants = this.tenantService.findTenantsByName(defaultTenantName);
+    	List<Tenant> tenants = this.tenantService.findTenantsByName(tenantName);
     	if (tenants == null || tenants.isEmpty()) {
-    		this.logger.warn("Default tenant not found");
+    		this.logger.warn("Tenant not found: {}", tenantName);
     		return null;
     	}
     	
@@ -193,8 +196,18 @@ public class KeycloakActivitiAppAuthenticator extends AbstractKeycloakActivitiAu
 			this.logger.trace("Inspecting group: {} => {} ({})", group.getId(), group.getName(), group.getExternalId());
 			
 			if (group.getExternalId() != null && this.removeMapEntriesByValue(roles, this.apsGroupExternalIdToKeycloakRole(group.getExternalId()))) {
+				if (group.getTenantId() == null) {
+					// fix stray groups
+					group.setTenantId(tenantId);
+					group.setLastUpdate(new Date());
+					this.groupService.save(group);
+				}
 				// role already existed and the user is already a member
 			} else if (group.getExternalId() == null && roles.remove(this.apsGroupNameToKeycloakRole(group.getName())) != null) {
+				// register the group as external
+				group.setExternalId(this.keycloakRoleToApsGroupExternalId(this.apsGroupNameToKeycloakRole(group.getName())));
+				group.setLastUpdate(new Date());
+				this.groupService.save(group);
 				// internal role already existed and the user is already a member
 			} else {
 				// at this point, we have a group that the user does not have a corresponding role for
