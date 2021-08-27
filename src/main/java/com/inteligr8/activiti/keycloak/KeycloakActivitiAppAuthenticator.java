@@ -21,12 +21,10 @@ import org.springframework.security.core.AuthenticationException;
 import org.springframework.stereotype.Component;
 
 import com.activiti.domain.idm.Group;
-import com.activiti.domain.idm.Tenant;
 import com.activiti.domain.idm.User;
 import com.activiti.service.api.GroupService;
 import com.activiti.service.api.UserService;
-import com.activiti.service.idm.TenantService;
-import com.activiti.service.license.LicenseService;
+import com.inteligr8.activiti.TenantFinderService;
 
 /**
  * This class/bean implements an Open ID Connect authenticator for Alfresco
@@ -48,12 +46,6 @@ public class KeycloakActivitiAppAuthenticator extends AbstractKeycloakActivitiAu
     private final Logger logger = LoggerFactory.getLogger(this.getClass());
     
     private final Pattern emailNamesPattern = Pattern.compile("([A-Za-z]+)[A-Za-z0-9]*\\.([A-Za-z]+)[A-Za-z0-9]*@.*");
-
-    @Autowired
-    private LicenseService licenseService;
-    
-    @Autowired
-    private TenantService tenantService;
     
     @Autowired
     private UserService userService;
@@ -61,8 +53,8 @@ public class KeycloakActivitiAppAuthenticator extends AbstractKeycloakActivitiAu
     @Autowired
     private GroupService groupService;
     
-    @Value("${keycloak-ext.tenant:#{null}}")
-    private String tenant;
+    @Autowired
+    private TenantFinderService tenantFinderService;
     
     @Value("${keycloak-ext.external.id:ais}")
     protected String externalIdmSource;
@@ -84,7 +76,7 @@ public class KeycloakActivitiAppAuthenticator extends AbstractKeycloakActivitiAu
      */
     @Override
     public void preAuthenticate(Authentication auth) throws AuthenticationException { 
-    	Long tenantId = this.findTenantId();
+    	Long tenantId = this.tenantFinderService.findTenantId();
 		this.logger.trace("Tenant ID: {}", tenantId);
 		
     	User user = this.findUser(auth, tenantId);
@@ -125,25 +117,11 @@ public class KeycloakActivitiAppAuthenticator extends AbstractKeycloakActivitiAu
      */
     @Override
     public void postAuthenticate(Authentication auth) throws AuthenticationException {
-    	Long tenantId = this.findTenantId();
+    	Long tenantId = this.tenantFinderService.findTenantId();
     	User user = this.findUser(auth, tenantId);
 		this.logger.debug("Inspecting user: {} => {}", user.getId(), user.getExternalId());
 		
     	this.syncUserRoles(user, auth, tenantId);
-    }
-    
-    private Long findTenantId() {
-    	String tenantName = this.tenant == null ? this.licenseService.getDefaultTenantName() : this.tenant;
-		this.logger.trace("Using Tenant: {}", tenantName);
-		
-    	List<Tenant> tenants = this.tenantService.findTenantsByName(tenantName);
-    	if (tenants == null || tenants.isEmpty()) {
-    		this.logger.warn("Tenant not found: {}", tenantName);
-    		return null;
-    	}
-    	
-    	Tenant tenant = tenants.iterator().next();
-    	return tenant.getId();
     }
     
     private User findUser(Authentication auth, Long tenantId) {
