@@ -3,6 +3,8 @@ package com.inteligr8.activiti;
 import java.util.Arrays;
 import java.util.List;
 
+import javax.persistence.NonUniqueResultException;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -65,21 +67,28 @@ public class ActivitiAppAdminMembersFixer implements DataFixer {
 			return;
 
     	Long tenantId = this.tenantFinderService.findTenantId();
-    	List<Group> groups;
-		Group group1 = this.groupService.getGroupByExternalIdAndTenantId(this.adminGroupExternalId, tenantId);
-		if (group1 != null) {
-			groups = Arrays.asList(group1);
-		} else {
+    	List<Group> groups = null;
+    	try {
+			Group group1 = this.groupService.getGroupByExternalIdAndTenantId(this.adminGroupExternalId, tenantId);
+			if (group1 != null)
+				groups = Arrays.asList(group1);
+    	} catch (NonUniqueResultException nure) {
+    		// suppress
+    	}
+		if (groups == null)
 			groups = this.groupService.getGroupByNameAndTenantId(this.adminGroupName, tenantId);
-		}
+		
 		this.logger.debug("Found {} admin group(s)", groups.size());
 		
 		for (String email : adminUsers) {
-    		User user = this.userService.findUserByEmail(email);
-
-    		this.logger.debug("Adding {} to admin group(s)", user.getEmail());
-    		for (Group group : groups)
-    			this.groupService.addUserToGroup(group, user);
+    		User user = this.userService.findUserByEmailAndTenantId(email, tenantId);
+    		if (user == null) {
+    			this.logger.info("The user with email '{}' does not exist, so they cannot be added as an administrator", email);
+    		} else {
+	    		this.logger.debug("Adding {} to admin group(s)", user.getEmail());
+	    		for (Group group : groups)
+	    			this.groupService.addUserToGroup(group, user);
+    		}
 		}
 	}
 
