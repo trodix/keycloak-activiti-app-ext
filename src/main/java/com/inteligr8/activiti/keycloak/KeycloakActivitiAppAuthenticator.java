@@ -62,20 +62,20 @@ public class KeycloakActivitiAppAuthenticator extends AbstractKeycloakActivitiAu
     @Value("${keycloak-ext.external.id:ais}")
     protected String externalIdmSource;
 
-    @Value("${keycloak-ext.group.organization.regex.patterns:.*}")
-    protected String regexOrgIncludes;
+    @Value("${keycloak-ext.group.capability.regex.patterns:#{null}}")
+    protected String regexCapIncludes;
 
-    protected final Set<Pattern> orgIncludes = new HashSet<>();
+    protected final Set<Pattern> capIncludes = new HashSet<>();
     
     @Override
     @OverridingMethodsMustInvokeSuper
 	public void afterPropertiesSet() {
 		super.afterPropertiesSet();
 		
-    	if (this.regexOrgIncludes != null) {
-    		String[] regexPatternStrs = StringUtils.split(this.regexOrgIncludes, ',');
+    	if (this.regexCapIncludes != null) {
+    		String[] regexPatternStrs = StringUtils.split(this.regexCapIncludes, ',');
     		for (int i = 0; i < regexPatternStrs.length; i++)
-    			this.orgIncludes.add(Pattern.compile(regexPatternStrs[i]));
+    			this.capIncludes.add(Pattern.compile(regexPatternStrs[i]));
     	}
 	}
     
@@ -274,16 +274,16 @@ public class KeycloakActivitiAppAuthenticator extends AbstractKeycloakActivitiAu
     }
     
     private boolean isRoleToBeOrganization(String role) {
-    	if (this.orgIncludes.isEmpty())
-    		return false;
+    	if (this.capIncludes.isEmpty())
+    		return true;
     	
-		for (Pattern regex : this.orgIncludes) {
+		for (Pattern regex : this.capIncludes) {
 			Matcher matcher = regex.matcher(role);
 			if (matcher.matches())
-				return true;
+				return false;
 		}
 		
-		return false;
+		return true;
     }
     
 }
