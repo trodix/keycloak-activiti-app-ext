@@ -20,6 +20,13 @@ The installation is simple.  Just include the JAR in the classpath of your Activ
 
 Notice the use of `PostResources` instead of `PreResources`.  This library needs to be loaded after the web application.  This is the best way to load any other extensions or customization to the Activiti App, including `JavaDelegate` implementations.
 
+## Support Matrix
+
+| Keycloak Activiti App Extension | Activiti App    |
+| ------------------------------- | --------------- |
+| v1.0 - v1.2                     | v1.11.x         |
+| v1.3+                           | v1.11.x - v2.3+ |
+
 ## Configuration
 
 The library is highly configurable.  You configure it with properties specified in the `activiti-app.properties` file, which exists somewhere in the root of the classpath.  That is typically in the `lib` folder.  The properties to configure are enumerated in the table below.
