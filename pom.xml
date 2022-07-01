@@ -12,7 +12,7 @@
 		<maven.compiler.target>11</maven.compiler.target>
 		<maven.compiler.release>11</maven.compiler.release>
 
-		<aps.version>2.3.2</aps.version>
+		<aps.version>2.0.1</aps.version>
 		<keycloak.version>10.0.2</keycloak.version>
 		<spring-security-oauth2.version>2.5.2.RELEASE</spring-security-oauth2.version>
 		<slf4j.version>1.7.26</slf4j.version>
