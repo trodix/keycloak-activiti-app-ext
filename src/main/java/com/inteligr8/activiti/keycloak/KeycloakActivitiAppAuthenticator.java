@@ -1,12 +1,15 @@
 package com.inteligr8.activiti.keycloak;
 
 import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.Map.Entry;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import javax.annotation.OverridingMethodsMustInvokeSuper;
 import javax.persistence.NonUniqueResultException;
 
 import org.apache.commons.lang3.StringUtils;
@@ -59,16 +62,22 @@ public class KeycloakActivitiAppAuthenticator extends AbstractKeycloakActivitiAu
     @Value("${keycloak-ext.external.id:ais}")
     protected String externalIdmSource;
 
-    @Value("${keycloak-ext.syncGroupAs:organization}")
-    protected String syncGroupAs;
+    @Value("${keycloak-ext.group.capability.regex.patterns:#{null}}")
+    protected String regexCapIncludes;
+
+    protected final Set<Pattern> capIncludes = new HashSet<>();
     
-    protected boolean syncGroupAsOrganization() {
-    	return !this.syncGroupAsCapability();
-    }
-    
-    protected boolean syncGroupAsCapability() {
-    	return this.syncGroupAs != null && this.syncGroupAs.toLowerCase().startsWith("cap");
-    }
+    @Override
+    @OverridingMethodsMustInvokeSuper
+	public void afterPropertiesSet() {
+		super.afterPropertiesSet();
+		
+    	if (this.regexCapIncludes != null) {
+    		String[] regexPatternStrs = StringUtils.split(this.regexCapIncludes, ',');
+    		for (int i = 0; i < regexPatternStrs.length; i++)
+    			this.capIncludes.add(Pattern.compile(regexPatternStrs[i]));
+    	}
+	}
     
     /**
      * This method validates that the user exists, if not, it creates the
@@ -163,8 +172,6 @@ public class KeycloakActivitiAppAuthenticator extends AbstractKeycloakActivitiAu
     		return;
     	}
     	
-    	boolean syncAsOrg = this.syncGroupAsOrganization();
-    	
 		// check Activiti groups
 		User userWithGroups = this.userService.getUser(user.getId(), true);
 		for (Group group : userWithGroups.getGroups()) {
@@ -228,6 +235,8 @@ public class KeycloakActivitiAppAuthenticator extends AbstractKeycloakActivitiAu
 			if (group == null) {
 				if (this.createMissingGroup) {
 					this.logger.trace("Creating new group for role: {}", role);
+					boolean syncAsOrg = this.isRoleToBeOrganization(role.getKey());
+					this.logger.trace("Creating new group as {}: {}", syncAsOrg ? "organization" : "capability", role);
 					String name = this.keycloakRoleToApsGroupName(role.getValue());
 					String externalId = this.keycloakRoleToApsGroupExternalId(role.getKey());
 					int type = syncAsOrg ? Group.TYPE_FUNCTIONAL_GROUP : Group.TYPE_SYSTEM_GROUP;
@@ -262,6 +271,19 @@ public class KeycloakActivitiAppAuthenticator extends AbstractKeycloakActivitiAu
     
     private String apsGroupNameToKeycloakRole(String externalId) {
     	return externalId;
+    }
+    
+    private boolean isRoleToBeOrganization(String role) {
+    	if (this.capIncludes.isEmpty())
+    		return true;
+    	
+		for (Pattern regex : this.capIncludes) {
+			Matcher matcher = regex.matcher(role);
+			if (matcher.matches())
+				return false;
+		}
+		
+		return true;
     }
     
 }

@@ -12,6 +12,8 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import javax.annotation.OverridingMethodsMustInvokeSuper;
+
 import org.apache.commons.lang3.StringUtils;
 import org.keycloak.KeycloakPrincipal;
 import org.keycloak.KeycloakSecurityContext;
@@ -71,6 +73,7 @@ public abstract class AbstractKeycloakActivitiAuthenticator implements Authentic
     protected final Set<Pattern> groupExcludes = new HashSet<>();
     
     @Override
+    @OverridingMethodsMustInvokeSuper
     public void afterPropertiesSet() {
     	if (this.regexPatterns != null) {
     		String[] regexPatternStrs = StringUtils.split(this.regexPatterns, ',');

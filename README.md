@@ -41,10 +41,10 @@ The library is highly configurable.  You configure it with properties specified 
 
 ### For Activiti App Only
 
-| Property                                  | Default        | Description |
-| ----------------------------------------- | -------------- | ----------- |
-| `keycloak-ext.syncGroupAs`                | `organization` | When creating a new group, should it be a functional (`organization`) group or a system (`capability`) group? |
-| `keycloak-ext.external.id`                | `ais`            | When creating a new group or registering an internal group as external, use this ID as a prefix to the external group ID. |
+| Property                                       | Default | Description |
+| ---------------------------------------------- | ------- | ----------- |
+| `keycloak-ext.group.capability.regex.patterns` |         | When creating a new group, sync as an APS Organization, except when the specified pattern matches the role.  In those cases, sync as an APS Capability. |
+| `keycloak-ext.external.id`                     | `ais`   | When creating a new group or registering an internal group as external, use this ID as a prefix to the external group ID. |
 
 ### Rare
 
