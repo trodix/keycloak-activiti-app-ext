@@ -44,6 +44,16 @@
 			<version>${aps.version}</version>
 			<classifier>classes</classifier>
 			<scope>provided</scope>
+			<exclusions>
+				<exclusion>
+					<groupId>com.activiti</groupId>
+					<artifactId>aspose-transformation</artifactId>
+				</exclusion>
+				<exclusion>
+					<groupId>org.alfresco.officeservices</groupId>
+					<artifactId>aoservices</artifactId>
+				</exclusion>
+			</exclusions>
 		</dependency>
 		<!-- Needed for the Activiti App Public API -->
 		<dependency>
@@ -51,6 +61,16 @@
 			<artifactId>activiti-app-logic</artifactId>
 			<version>${aps.version}</version>
 			<scope>provided</scope>
+			<exclusions>
+				<exclusion>
+					<groupId>com.activiti</groupId>
+					<artifactId>aspose-transformation</artifactId>
+				</exclusion>
+				<exclusion>
+					<groupId>org.alfresco.officeservices</groupId>
+					<artifactId>aoservices</artifactId>
+				</exclusion>
+			</exclusions>
 		</dependency>
 	</dependencies>
 
