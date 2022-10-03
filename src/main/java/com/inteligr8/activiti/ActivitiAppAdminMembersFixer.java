@@ -1,3 +1,17 @@
+/*
+ * This program is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU Lesser General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or (at your
+ * option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
+ * more details.
+ *
+ * You should have received a copy of the GNU General Public License along
+ * with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
 package com.inteligr8.activiti;
 
 import java.util.Arrays;
@@ -17,13 +31,9 @@ import com.activiti.service.api.GroupService;
 import com.activiti.service.api.UserService;
 
 /**
- * This class/bean overrides the APS security configuration with a collection
- * of implementations.  The OOTB extension only provides one override.  This
- * uses that extension point, but delegates it out to multiple possible
- * implementations.
- * 
- * Order cannot be controlled, so it should not be assumed in any adapter
- * implementation.
+ * This class/bean attempts to add administrators to the administrative group
+ * in APS.  This may be used if you are accidentally left without anyone with
+ * administrative access.
  * 
  * @author brian@inteligr8.com
  */
